@@ -17,6 +17,21 @@ on:
         required: false
         type: string
         default: 'npm test'
+      enable-stryker:
+        description: 'Rodar mutation testing com Stryker'
+        required: false
+        type: boolean
+        default: false
+      enable-playwright:
+        description: 'Rodar testes E2E de API com Playwright'
+        required: false
+        type: boolean
+        default: false
+      k6-script:
+        description: 'Caminho para o script k6 (vazio = desabilitado)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   ci:
@@ -89,3 +104,64 @@ jobs:
 
       - name: Run tests
         run: ${{ inputs.test-command }}
+
+      - name: Mutation testing (Stryker)
+        if: inputs.enable-stryker
+        run: npx stryker run
+
+      - name: Upload mutation report
+        if: inputs.enable-stryker && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stryker-report-${{ github.sha }}
+          path: reports/mutation/
+
+      - name: E2E tests (Playwright)
+        if: inputs.enable-playwright
+        run: npx playwright test
+        env:
+          TWILIO_ACCOUNT_SID: test
+          TWILIO_AUTH_TOKEN: test
+          TWILIO_WHATSAPP_NUMBER: '+15550000000'
+          AUTHORIZED_NUMBER: '5511999999999'
+          ANTHROPIC_API_KEY: test
+          PORT: '3000'
+
+      - name: Upload Playwright report
+        if: inputs.enable-playwright && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: playwright-report/
+
+      - name: Install k6
+        if: inputs.k6-script != ''
+        run: |
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6 -y
+
+      - name: Performance tests (k6)
+        if: inputs.k6-script != ''
+        continue-on-error: true
+        run: |
+          node index.js &
+          SERVER_PID=$!
+          npx wait-on http://localhost:3000/health --timeout 15000
+          k6 run --summary-export=k6-summary.json ${{ inputs.k6-script }}
+          kill $SERVER_PID
+        env:
+          TWILIO_ACCOUNT_SID: test
+          TWILIO_AUTH_TOKEN: test
+          TWILIO_WHATSAPP_NUMBER: '+15550000000'
+          AUTHORIZED_NUMBER: '5511999999999'
+          ANTHROPIC_API_KEY: test
+          PORT: '3000'
+          BASE_URL: http://localhost:3000
+
+      - name: Upload k6 summary
+        if: inputs.k6-script != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary-${{ github.sha }}
+          path: k6-summary.json
