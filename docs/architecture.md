@@ -23,26 +23,47 @@ Executada a cada push em `dev`. Qualquer falha bloqueia o deploy.
 
 ```
 build Docker
-  → SonarQube Community   (qualidade de código + cobertura)
+  → secret scanning       (truffleHog — credenciais no código)
+  → dependency scanning   (Dependabot — dependências vulneráveis)
+  → SonarQube Community   (qualidade + cobertura de código)
+  → code coverage gate    (bloqueia se cobertura < threshold)
   → Semgrep               (SAST — vulnerabilidades no código)
-  → Trivy                 (vulnerabilidades na imagem Docker)
+  → Trivy                 (CVEs na imagem Docker)
+  → SBOM                  (inventário de dependências da imagem)
+  → OPA                   (policy as code — limites de CPU/memória obrigatórios)
   → testes unitários
+  → mutation testing      (Stryker — qualidade dos testes)
+  → API contract testing  (Pact — contratos entre serviços)
+  → E2E tests             (Playwright)
+  → performance tests     (k6)
 ```
 
-- **SonarQube Community**: auto-hospedado no cluster, sem custo
-- **Semgrep**: gratuito até 10 contribuidores, multi-linguagem
-- **Trivy**: open source, escaneia CVEs na imagem
+| Ferramenta | Propósito | Custo |
+|---|---|---|
+| truffleHog | Secret scanning | Gratuito |
+| Dependabot | Dependency scanning | Gratuito |
+| SonarQube Community | Qualidade + cobertura | Gratuito (self-hosted) |
+| Semgrep | SAST | Gratuito (até 10 devs) |
+| Trivy | CVEs na imagem | Gratuito |
+| SBOM (Syft) | Inventário de dependências | Gratuito |
+| OPA | Policy as code | Gratuito |
+| Stryker | Mutation testing | Gratuito |
+| Pact | API contract testing | Gratuito |
+| Playwright | E2E tests | Gratuito |
+| k6 | Performance tests | Gratuito |
 
 ## Estratégia de Deploy em Produção
 
 Pipeline combinada: Blue-Green + Canary + Testes Sintéticos.
 
 ```
-1. deploy da nova versão como "green" (blue continua recebendo 100%)
-2. Nginx roteia 10% do tráfego para green (canary)
-3. testes sintéticos rodam contra green
-   ✅ passou → migra 100% para green → remove blue
-   ❌ falhou → rollback automático: remove green, blue permanece
+semantic version bump automático
+  → changelog gerado a partir dos commits
+  → green deploy (blue continua em 100%)
+  → Nginx roteia 10% para green (canary)
+  → testes sintéticos contra green
+     ✅ passou → migra 100% para green → remove blue
+     ❌ falhou → rollback automático: remove green, blue permanece
 ```
 
 ## Atuação em Caso de Falha
@@ -217,6 +238,47 @@ synthetic_tests:
     expected_status: 200
     max_response_ms: 500
 ```
+
+## Autenticação e Segurança Multi-Cloud
+
+### Autenticação GitHub Actions → Cloud
+
+Credenciais de longa duração armazenadas como GitHub Secrets, com permissão mínima (apenas deploy no cluster):
+
+| Secret | Cloud |
+|---|---|
+| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | AWS → EKS |
+| `GCP_SA_KEY` | GCP → GKE |
+| `AZURE_CREDENTIALS` | Azure → AKS |
+
+### Segredos das Aplicações — HashiCorp Vault
+
+Vault auto-hospedado no cluster. Apps recebem segredos via Vault Agent sidecar — sem acoplamento direto ao Vault.
+
+```
+app → Vault Agent (sidecar) → Vault → secret injetado como env var
+```
+
+### Controle de Acesso no Cluster
+
+| Camada | Tecnologia | Propósito |
+|---|---|---|
+| RBAC | Kubernetes nativo | Permissões por namespace (dev/prod isolados) |
+| Network Policies | Kubernetes nativo | Controla comunicação entre pods |
+| Service Mesh | Istio | mTLS — toda comunicação entre serviços criptografada |
+
+Namespaces `dev` e `prod` completamente isolados.
+
+## Observabilidade
+
+- **Prometheus + Grafana** — métricas de CPU, memória, latência e erros por produto
+- **Alertas via WhatsApp** — notificação automática quando métricas ultrapassam limites
+- **Kubecost** — custo por namespace/produto em tempo real
+- **Drift detection** — alerta se estado do cluster divergir do Git
+
+## IaC — Infracost
+
+Estimativa de custo gerada automaticamente a cada mudança nos repositórios Terraform (`infra-aws`, `infra-gcp`, `infra-azure`) antes de aplicar.
 
 ## Contratos Obrigatórios por App
 
