@@ -11,7 +11,7 @@ on:
         description: 'Image tag'
         required: false
         type: string
-        default: ${{ github.sha }}
+        default: ''
       latest:
         description: 'Also tag as latest'
         required: false
@@ -46,7 +46,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ inputs.image }}:${{ inputs.tag }}
+            ghcr.io/${{ inputs.image }}:${{ inputs.tag || github.sha }}
             ${{ inputs.latest && format('ghcr.io/{0}:latest', inputs.image) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
