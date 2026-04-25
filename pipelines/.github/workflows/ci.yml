@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: 'Docker image name (ex: muri1o/whatsapp-bot)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '20'
+      test-command:
+        description: 'Command to run tests'
+        required: false
+        type: string
+        default: 'npm test'
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Secret scanning (truffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+      - name: SAST (Semgrep)
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Build Docker image
+        run: docker build -t ghcr.io/${{ inputs.image }}:${{ github.sha }} .
+
+      - name: Vulnerability scan (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ inputs.image }}:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ghcr.io/${{ inputs.image }}:${{ github.sha }}
+          artifact-name: sbom-${{ github.sha }}.spdx.json
+          output-file: sbom.spdx.json
+
+      - name: Install conftest
+        run: |
+          curl -sL https://github.com/open-policy-agent/conftest/releases/download/v0.46.0/conftest_0.46.0_Linux_x86_64.tar.gz | tar xz -C /usr/local/bin
+
+      - name: Policy check (OPA)
+        run: |
+          helm template helm/ | conftest test --policy opa/policies/ -
+
+      - name: Run tests
+        run: ${{ inputs.test-command }}
