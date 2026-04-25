@@ -8,7 +8,8 @@ Cada produto referencia os workflows deste repositório via `workflow_call` — 
 
 ## Documentação
 
-- [Arquitetura — Aplicações](docs/architecture-application.md) — pipeline Kubernetes para apps containerizadas
+- [Arquitetura — Geral](docs/architecture.md) — padrões comuns a todos os tipos de pipeline
+- [Arquitetura — Aplicações](docs/architecture-application.md) — apps containerizadas em Kubernetes
 - `docs/architecture-databases.md` — em breve
 - `docs/architecture-queues.md` — em breve
 - `docs/architecture-topics.md` — em breve
