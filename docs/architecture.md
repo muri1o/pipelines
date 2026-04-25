@@ -1,4 +1,9 @@
-# Arquitetura de Pipelines
+# Arquitetura de Pipelines — Kubernetes
+
+> **Escopo:** Este documento define a pipeline para **aplicações containerizadas em Kubernetes**. Outros tipos de pipeline serão documentados separadamente:
+> - `docs/pipeline-databases.md` — provisionamento e migração de bancos de dados
+> - `docs/pipeline-queues.md` — filas e mensageria (SQS, Pub/Sub, Service Bus)
+> - `docs/pipeline-topics.md` — tópicos de eventos (Kafka, SNS, EventGrid)
 
 ## Stack
 
