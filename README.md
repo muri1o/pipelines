@@ -8,7 +8,10 @@ Cada produto referencia os workflows deste repositório via `workflow_call` — 
 
 ## Documentação
 
-- [Arquitetura](docs/architecture.md) — decisões de stack, ambientes, deploy e padrões
+- [Arquitetura — Aplicações](docs/architecture-application.md) — pipeline Kubernetes para apps containerizadas
+- `docs/architecture-databases.md` — em breve
+- `docs/architecture-queues.md` — em breve
+- `docs/architecture-topics.md` — em breve
 
 ## Workflows Disponíveis
 
