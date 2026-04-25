@@ -71,13 +71,19 @@ jobs:
           artifact-name: sbom-${{ github.sha }}.spdx.json
           output-file: sbom.spdx.json
 
+      - name: Checkout pipelines (OPA policies)
+        uses: actions/checkout@v4
+        with:
+          repository: muri1o/pipelines
+          path: .ci-pipelines
+
       - name: Install conftest
         run: |
           curl -sL https://github.com/open-policy-agent/conftest/releases/download/v0.46.0/conftest_0.46.0_Linux_x86_64.tar.gz | tar xz -C /usr/local/bin
 
       - name: Policy check (OPA)
         run: |
-          helm template helm/ | conftest test --policy opa/policies/ -
+          helm template helm/ | conftest test --policy .ci-pipelines/opa/policies/ -
 
       - name: Run tests
         run: ${{ inputs.test-command }}
