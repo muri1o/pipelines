@@ -141,6 +141,83 @@ cluster/
 - **Ingress Controller**: Nginx (open source, qualquer cloud)
 - **Secrets**: Kubernetes Secrets — criados via pipeline, nunca commitados no Git
 
+## Multi-Cloud
+
+### Providers Suportados
+
+AWS, GCP e Azure. Cada produto escolhe sua cloud de forma independente.
+
+### Repositórios de Infraestrutura
+
+```
+muri1o/infra-aws    → módulos Terraform para EKS (AWS)
+muri1o/infra-gcp    → módulos Terraform para GKE (GCP)
+muri1o/infra-azure  → módulos Terraform para AKS (Azure)
+```
+
+Cada repositório é independente — sem código compartilhado entre clouds.
+
+### Atribuição de Cloud por Produto
+
+A cloud de cada produto é definida no GitHub Projects e sincronizada automaticamente para o repositório do produto.
+
+```
+1. usuário define no GitHub Projects:
+   Cloud: AWS  |  Region: us-east-1
+
+2. workflow em muri1o/pipelines detecta a mudança via webhook
+
+3. workflow atualiza environments/prod.yaml no repo do produto:
+   cloud: aws
+   region: us-east-1
+
+4. pipeline de deploy lê esses valores e seleciona
+   as credenciais corretas do GitHub Secrets
+```
+
+### Campos Customizados no GitHub Projects
+
+| Campo | Tipo | Valores |
+|---|---|---|
+| `Cloud` | Seleção única | AWS / GCP / Azure |
+| `Region` | Texto | ex: `us-east-1`, `us-central1`, `eastus` |
+
+### GitHub Secrets por Produto
+
+| Secret | Descrição |
+|---|---|
+| `KUBECONFIG_AWS` | Acesso ao cluster EKS |
+| `KUBECONFIG_GCP` | Acesso ao cluster GKE |
+| `KUBECONFIG_AZR` | Acesso ao cluster AKS |
+
+A pipeline seleciona automaticamente o secret correto com base no campo `cloud` do `environments/prod.yaml`.
+
+### Formato Atualizado de `environments/prod.yaml`
+
+```yaml
+cloud: aws          # aws | gcp | azure
+region: us-east-1
+
+app:
+  port: 3000
+  replicas: 2
+  memory: 512Mi
+  cpu: 250m
+
+image:
+  registry: ghcr.io/muri1o
+  tag: ""
+
+env:
+  NODE_ENV: production
+  LOG_LEVEL: info
+
+synthetic_tests:
+  - path: /health
+    expected_status: 200
+    max_response_ms: 500
+```
+
 ## Contratos Obrigatórios por App
 
 Todo repositório de produto deve seguir estes contratos para funcionar nas pipelines sem customização:
