@@ -110,11 +110,12 @@ jobs:
         run: npx stryker run
 
       - name: Upload mutation report
-        if: inputs.enable-stryker && always()
+        if: inputs.enable-stryker && (success() || failure())
         uses: actions/upload-artifact@v4
         with:
           name: stryker-report-${{ github.sha }}
           path: reports/mutation/
+          if-no-files-found: ignore
 
       - name: E2E tests (Playwright)
         if: inputs.enable-playwright
@@ -128,18 +129,19 @@ jobs:
           PORT: '3000'
 
       - name: Upload Playwright report
-        if: inputs.enable-playwright && always()
+        if: inputs.enable-playwright && (success() || failure())
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ github.sha }}
           path: playwright-report/
+          if-no-files-found: ignore
 
       - name: Install k6
         if: inputs.k6-script != ''
         run: |
           curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update && sudo apt-get install k6 -y
+          sudo apt-get update && sudo apt-get install k6=0.55.0 -y
 
       - name: Performance tests (k6)
         if: inputs.k6-script != ''
@@ -147,9 +149,9 @@ jobs:
         run: |
           node index.js &
           SERVER_PID=$!
+          trap "kill $SERVER_PID 2>/dev/null || true" EXIT
           npx wait-on http://localhost:3000/health --timeout 15000
           k6 run --summary-export=k6-summary.json ${{ inputs.k6-script }}
-          kill $SERVER_PID
         env:
           TWILIO_ACCOUNT_SID: test
           TWILIO_AUTH_TOKEN: test
@@ -165,3 +167,4 @@ jobs:
         with:
           name: k6-summary-${{ github.sha }}
           path: k6-summary.json
+          if-no-files-found: ignore
